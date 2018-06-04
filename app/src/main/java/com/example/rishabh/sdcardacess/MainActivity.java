@@ -3,6 +3,9 @@ package com.example.rishabh.sdcardacess;
 import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -16,6 +19,7 @@ import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.animation.AnimationUtils;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -24,10 +28,19 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ViewSwitcher;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.util.ArrayList;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener{
+public class MainActivity extends AppCompatActivity implements View.OnClickListener,ViewSwitcher.ViewFactory{
 
     Button btnDownloadDirectory;
     Button btnMusicsDirectory;
@@ -44,12 +57,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     Button btnRetrieveInfo;
     TextView txtValues;
 
-    ImageView imageView;
+    ImageView imgAnimal;
 
     Button btnAllowAccessToThePictures;
 
     LinearLayout linearLayoutHorizontal;
     ImageSwitcher imageSwitcher;
+
+    ArrayList<String> filePathNames;
+    File[] files;
 
    public static final int REQUEST_CODE = 1234;
 
@@ -104,7 +120,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
       btnRetrieveInfo = findViewById(R.id.btnRetrieveValue);
       txtValues = findViewById(R.id.txtValue);
 
-      imageView = findViewById(R.id.imageView);
+      imgAnimal = findViewById(R.id.imgAnimal);
 
       btnAllowAccessToThePictures = findViewById(R.id.btnAllowAcessToPictures);
 
@@ -121,9 +137,57 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         btnPicturesDirectory.setOnClickListener(MainActivity.this);
         btnSaveFile.setOnClickListener(MainActivity.this);
         btnRetrieveInfo.setOnClickListener(MainActivity.this);
-        imageView.setOnClickListener(MainActivity.this);
+        imgAnimal.setOnClickListener(MainActivity.this);
+
+        imageSwitcher.setFactory(MainActivity.this);
+        imageSwitcher.setInAnimation(AnimationUtils.loadAnimation(MainActivity.this,android.R.anim.slide_in_left));
+        imageSwitcher.setOutAnimation(AnimationUtils.loadAnimation(MainActivity.this,android.R.anim.slide_out_right));
+
+        btnAllowAccessToThePictures.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                if(isStoragePermissionGranted()){
+
+                    filePathNames = new ArrayList<String>();
+                    File filePath = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                            "AnimalImages");
+                    if(filePath.isDirectory() && filePath != null){
+                        files = filePath.listFiles();
+
+                        for(int index = 0; index < files.length;index++){
+                            filePathNames.add(files[index].getAbsolutePath());
+                        }
+                    }
+
+                    for(int index = 0;index < filePathNames.size();index++){
+
+                        final ImageView imageView = new ImageView(MainActivity.this);
+                        imageView.setImageURI(Uri.parse(filePathNames.get(index)));
+                        imageView.setLayoutParams( new LinearLayout.LayoutParams(200,200));
+
+                        final int i = index;
+                        imageView.setOnClickListener(new View.OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                imageSwitcher.setImageURI(Uri.parse(filePathNames.get(i)));
+                            }
+                        });
+                        linearLayoutHorizontal.addView(imageView);
+                    }
+                }
+            }
+        });
 
     }
+
+    @Override
+    public View makeView() {
+        ImageView imageView = new ImageView(MainActivity.this);
+        imageView.setScaleType(ImageView.ScaleType.FIT_XY);
+        imageView.setLayoutParams(new ImageSwitcher.LayoutParams(500,500));
+        return imageView;
+   }
 
     public File returnStorageDirectoryForFolderName(String directoryName, String nameofFolder){
        File filepath = new File(Environment.getExternalStoragePublicDirectory(directoryName),nameofFolder);
@@ -140,11 +204,66 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Toast.makeText(MainActivity.this, string,Toast.LENGTH_SHORT).show();
     }
 
+    public  void letsSaveFiletoDocumentFolder(){
 
+       File filePath = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+               "Mytext.txt");
+
+       try{
+           FileOutputStream fileOutputStream = new FileOutputStream(filePath);
+           OutputStreamWriter outputStreamWriter = new OutputStreamWriter(fileOutputStream);
+           outputStreamWriter.append(edtValues.getText().toString());
+           outputStreamWriter.close();
+           fileOutputStream.close();
+           letsCreateToast("Saved Successfully");
+       } catch (Exception e){
+          Log.i("LOG",e.toString());
+          letsCreateToast("Exception Occured Check the logs for More details about the exception");
+       }
+    }
+
+    public void letsRetrieveFileDatafromDocuments(){
+
+        File filePath = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+                "Mytext.txt");
+        try{
+            FileInputStream fileInputStream = new FileInputStream(filePath);
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(fileInputStream));
+            String filedata = "";
+            String bufferData = "";
+            while((filedata = bufferedReader.readLine()) != null){
+                bufferData = bufferData + filedata + "\n";
+            }
+           txtValues.setText(bufferData);
+            bufferedReader.close();
+        } catch (Exception e){
+            Log.i("LOG",e.toString());
+            letsCreateToast("Exception Occured Check the logs for More details about the exception");
+        }
+
+
+    }
+
+    public void letsSaveimagetothePicturefolder(){
+
+       try{
+           Bitmap bitmap = BitmapFactory.decodeResource(getResources(),R.drawable.tiger);
+           File filePath = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                   "tigerphoto.png");
+           OutputStream outputStream = new FileOutputStream(filePath);
+           bitmap.compress(Bitmap.CompressFormat.PNG,100,outputStream);
+           outputStream.flush();
+           outputStream.close();
+           letsCreateToast("Image Saved SuccessFully");
+           } catch (Exception e){
+           Log.i("LOG",e.toString());
+           letsCreateToast("Exception Occured Check the logs for More details about the exception");
+       }
+
+    }
 
     @Override
     public void onClick(View v) {
-
        switch (v.getId()){
            case R.id.btnDownloadsDirectory:
                returnStorageDirectoryForFolderName(Environment.DIRECTORY_DOWNLOADS,
@@ -169,7 +288,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                returnStorageDirectoryForFolderName(Environment.DIRECTORY_PODCASTS,"My Postcasts");
                break;
            case R.id.btnPictureDirectory:
-               returnStorageDirectoryForFolderName(Environment.DIRECTORY_PICTURES,"My Photos");
+               returnStorageDirectoryForFolderName(Environment.DIRECTORY_PICTURES,"AnimalImages");
+               break;
+           case R.id.btnSaveValue:
+               letsSaveFiletoDocumentFolder();
+               break;
+           case R.id.btnRetrieveValue:
+               letsRetrieveFileDatafromDocuments();
+               break;
+           case R.id.imgAnimal:
+               letsSaveimagetothePicturefolder();
                break;
        }
     }
